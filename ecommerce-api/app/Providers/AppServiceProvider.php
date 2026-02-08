@@ -19,6 +19,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Event::listen(OrderShipped::class, SendShipmentNotification::class);
+        // Gate::policy(Product::class, ProductPolicy::class);
     }
 }
