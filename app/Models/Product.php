@@ -3,13 +3,10 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 class Product extends Model
@@ -18,15 +15,14 @@ class Product extends Model
 
     public static function booted()
     {
-        static::creating(fn(Product $product) => $product->slug = Str::slug($product->name));
-        // static::updating(function (Product $product) {
-        //     if ($product->isDirty('name')) {
-        //         $product->slug = Str::slug($product->name);
-        //     }
-        // });
+        static::creating(function (Product $product) {
+            $product->slug = static::generateUniqueSlug($product->name);
+        });
 
-        static::addGlobalScope('active', function ($query) {
-            $query->where('is_active', true);
+        static::updating(function (Product $product) {
+            if ($product->isDirty('name')) {
+                $product->slug = static::generateUniqueSlug($product->name, $product->getKey());
+            }
         });
     }
 
@@ -39,6 +35,23 @@ class Product extends Model
         'is_active',
         'image'
     ];
+
+    public static function generateUniqueSlug(string $name, ?int $ignoreId = null): string
+    {
+        $baseSlug = Str::slug($name);
+        $slug = $baseSlug !== '' ? $baseSlug : 'product';
+        $originalSlug = $slug;
+        $count = 1;
+
+        while (static::withTrashed()
+            ->when($ignoreId, fn (Builder $query) => $query->where('id', '!=', $ignoreId))
+            ->where('slug', $slug)
+            ->exists()) {
+            $slug = $originalSlug . '-' . $count++;
+        }
+
+        return $slug;
+    }
 
     public function inStock()
     {
@@ -122,12 +135,5 @@ class Product extends Model
     public function images()
     {
         return $this->hasMany(ProductImage::class);
-    }
-
-    public function getCachedGallery()
-    {
-        return Cache::remember("product_gallery_{$this->id}", 3600, function () {
-            return $this->images()->get();
-        });
     }
 }

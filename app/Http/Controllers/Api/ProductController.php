@@ -6,12 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateProductRequest;
 use App\Http\Resources\ProductResource;
 use App\Models\Product;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class ProductController extends Controller
 {
@@ -21,11 +20,20 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $version = Cache::get('products_cache_version', 1);
-        $page = $request->get('page', 1);
-        $cacheKey = "v{$version}_products_page_{$page}";
+        $cacheParams = [
+            'page' => (int) $request->integer('page', 1),
+            'per_page' => (int) $request->integer('per_page', 9),
+            'search' => $request->string('search')->toString(),
+            'category' => $request->get('category'),
+            'min_price' => $request->get('min_price'),
+            'max_price' => $request->get('max_price'),
+        ];
+        $cacheKey = 'products:' . $version . ':' . md5(json_encode($cacheParams));
 
         $products = Cache::remember($cacheKey, 3600, function () use ($request) {
-            return Product::with(['categories', 'images'])
+            return Product::query()
+                ->active()
+                ->with(['categories', 'images'])
                 ->filter($request)
                 ->latest()
                 ->paginate($request->get('per_page', 9));
@@ -58,19 +66,20 @@ class ProductController extends Controller
 
         ]);
 
-        // check if image uploaded
-        if ($request->hasFile('image')) {
-            $data['image'] = $request->file('image')->storeAs('products', $data['slug'], 'public');
-        }
-
         DB::beginTransaction();
 
         try {
+            // `image` stores the main product image on the product record itself.
+            if ($request->hasFile('image')) {
+                $data['image'] = $this->uploadImage($request->file('image'));
+            }
+
             $product = Product::create($data);
 
+            // `gallery` stores any additional product images in the related table.
             if ($request->hasFile('gallery')) {
                 foreach ($request->file('gallery') as $file) {
-                    $path = $file->store('products/gallery', 'public');
+                    $path = $this->uploadGalleryImage($file);
                     $product->images()->create(['image_path' => $path]);
                 }
             }
@@ -101,11 +110,15 @@ class ProductController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Product $product)
+    public function show(string $product)
     {
+        $product = Product::query()
+            ->active()
+            ->with(['categories', 'images'])
+            ->findOrFail($product);
 
         $productCached = Cache::remember('product_' . $product->id, 3600, function () use ($product) {
-            return $product->load('categories');
+            return $product->load(['categories', 'images']);
         });
 
         return (new ProductResource($productCached))
@@ -122,42 +135,65 @@ class ProductController extends Controller
      */
     public function update(UpdateProductRequest $request, Product $product)
     {
-
         $validated = $request->validated();
+        $oldImagePath = $product->image;
+        $newImagePath = null;
+        $newGalleryPaths = [];
 
-        if ($request->hasFile('gallery')) {
-            foreach ($request->file('gallery') as $imageFile) {
-                $path = $imageFile->store('products/gallery', 'public');
+        DB::beginTransaction();
 
-                $product->images()->create([
-                    'image_path' => $path
-                ]);
+        try {
+            if ($request->hasFile('image')) {
+                $newImagePath = $this->uploadImage($request->file('image'));
+                $validated['image'] = $newImagePath;
             }
 
-            Cache::forget("product_gallery_{$product->id}");
+            $product->update($validated);
+
+            if ($request->has('categories')) {
+                $product->categories()->sync($request->categories);
+            }
+
+            if ($request->hasFile('gallery')) {
+                foreach ($request->file('gallery') as $imageFile) {
+                    $path = $this->uploadGalleryImage($imageFile);
+                    $newGalleryPaths[] = $path;
+
+                    $product->images()->create([
+                        'image_path' => $path,
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            if ($newImagePath && $oldImagePath) {
+                Storage::disk('public')->delete($oldImagePath);
+            }
+
+            $this->clearCache($product);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Product updated successfully',
+                'data' => $product->load(['categories', 'images']),
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            if ($newImagePath) {
+                Storage::disk('public')->delete($newImagePath);
+            }
+
+            foreach ($newGalleryPaths as $path) {
+                Storage::disk('public')->delete($path);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update product: ' . $e->getMessage(),
+            ], 500);
         }
-
-        if ($request->hasFile('image')) {
-            Storage::disk('public')->delete($product->image);
-
-            $validated['image'] = $request->file('image')->storeAs('products', $product->slug, 'public');
-        }
-
-        // 3. تحديث الموديل بالكامل (بما في ذلك الصورة والبيانات الأخرى)
-        $product->update($validated);
-
-        // 4. تحديث التصنيفات (العلاقات)
-        if ($request->has('categories')) {
-            $product->categories()->sync($request->categories);
-        }
-
-        $this->clearCache($product);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Product updated successfully',
-            'data'    => $product->load('categories')
-        ]);
     }
 
     /**
@@ -165,27 +201,23 @@ class ProductController extends Controller
      */
     public function destroy(Product $product)
     {
-        if ($product->image) {
-            Storage::disk('public')->delete($product->image);
-        }
-        foreach ($product->images as $img) {
-            Storage::disk('public')->delete($img->image_path);
-        }
-
-        $this->clearCache($product);
         $product->delete();
+        $this->clearCache($product);
 
         return response()->json([
             'success' => true,
-            'message' => 'Product deleted successfully',
+            'message' => 'Product archived successfully',
         ], 200);
     }
 
     // undo soft delete
-    public function undoDelete(Request $request, Product $product)
+    public function undoDelete(Request $request, string $product)
     {
         if ($request->user()->hasRole('admin')) {
+            $product = Product::withTrashed()->findOrFail($product);
             $product->restore();
+            $this->clearCache($product);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Product restored successfully',
@@ -198,7 +230,7 @@ class ProductController extends Controller
         ], 403);
     }
     // permanent delete
-    public function permanentDelete(Request $request, Product $product)
+    public function permanentDelete(Request $request, string $product)
     {
         if (!$request->user()->hasRole('admin')) {
             return response()->json([
@@ -206,15 +238,25 @@ class ProductController extends Controller
                 'message' => 'You are not authorized to perform this action',
             ], 403);
         }
-        // $product = Product::withTrashed()->findOrFail($id);
-        $product->withTrashed();
 
-        // Delete image
-        if ($product->image) {
-            Storage::disk('public')->delete($product->image);
+        $product = Product::withTrashed()
+            ->with('images')
+            ->findOrFail($product);
+
+        $mainImagePath = $product->image;
+        $galleryPaths = $product->images->pluck('image_path')->filter()->all();
+
+        DB::transaction(function () use ($product) {
+            $product->forceDelete();
+        });
+
+        if ($mainImagePath) {
+            Storage::disk('public')->delete($mainImagePath);
         }
 
-        $product->forceDelete();
+        if ($galleryPaths) {
+            Storage::disk('public')->delete($galleryPaths);
+        }
 
         $this->clearCache($product);
 
@@ -229,7 +271,10 @@ class ProductController extends Controller
     {
         // get all products (default)
         if ($request->user()->hasRole('admin')) {
-            $products = Product::withTrashed()->get();
+            $products = Product::withTrashed()
+                ->with(['categories', 'images'])
+                ->latest()
+                ->get();
             return response()->json([
                 'success' => true,
                 'message' => 'Products retrieved successfully',
@@ -252,11 +297,13 @@ class ProductController extends Controller
         }
     }
 
-    private function uploadImage($image, string $slug): string
+    private function uploadImage(UploadedFile $image): string
     {
-        $extension = $image->getClientOriginalExtension();
-        $filename = $slug . '-' . time() . '.' . $extension;
+        return $image->store('products', 'public');
+    }
 
-        return $image->storeAs('products', $filename, 'public');
+    private function uploadGalleryImage(UploadedFile $image): string
+    {
+        return $image->store('products/gallery', 'public');
     }
 }

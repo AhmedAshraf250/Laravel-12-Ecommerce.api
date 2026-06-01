@@ -3,16 +3,18 @@
 namespace App\Models;
 
 use App\Enum\OrderStatus;
+use App\Enum\PaymentProvider;
 use App\Enum\PaymentStatus;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Auth;
 
 class Order extends Model
 {
     use HasFactory;
     protected $fillable = [
         'user_id',
+        'cookie_id',
         'status',
         'shipping_name',
         'shipping_address',
@@ -25,35 +27,38 @@ class Order extends Model
         'tax',
         'shipping_cost',
         'total',
+        'currency',
         'payment_method',
         'payment_status',
-        'transaction_id',
         'paid_at',
         'order_number',
         'notes',
-        'transaction_id',
-        'paid_at',
     ];
-
-    protected static function booted()
-    {
-        static::addGlobalScope('user_or_guest', function ($builder) {
-            if (request()->is('api/admin/*')) {
-                return;
-            }
-            if (Auth::check()) {
-                $builder->where('user_id', Auth::id());
-            } else {
-                $builder->where('cookie_id', Cart::getCookieId());
-            }
-        });
-    }
 
     protected $casts = [
         'status' => OrderStatus::class,
+        'payment_method' => PaymentProvider::class,
         'payment_status' => PaymentStatus::class,
         'paid_at' => 'datetime',
     ];
+
+    public function scopeVisibleTo(Builder $query, ?User $user = null, ?string $cookieId = null): Builder
+    {
+        if ($user?->isAdmin()) {
+            return $query;
+        }
+
+        if ($user) {
+            return $query->where('user_id', $user->id);
+        }
+
+        if ($cookieId) {
+            return $query->where('cookie_id', $cookieId);
+        }
+
+        return $query->whereRaw('1 = 0'); // safety fallback if no user or cookie ID is provided
+        // Order::query()->visibleTo(null, null)->get(); || X 
+    }
 
 
     // Define the relationship with the User model
@@ -67,102 +72,43 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
-    // public function statusHistory()
-    // {
-    //     return $this->hasMany(OrderStatusHistory::class)->latest();
-    // }
-
-    // public function transitionTo(OrderStatus $newStatus, ?User $changedBy = null, ?string $notes = null)
-    // {
-    //     // don't allow transition to the same status
-    //     if ($this->status === $newStatus) {
-    //         return true;
-    //     }
-
-    //     if (!$this->status->canTransitionTo($newStatus)) {
-    //         return false;
-    //     }
-
-    //     // store old status
-    //     $oldStatus = $this->status; // current status
-    //     // update the order status
-    //     $this->update(['status' => $newStatus]);
-
-    //     $this->statusHistory()->create([
-    //         'order_id' => $this->id,
-    //         'from_status' => $oldStatus,
-    //         'to_status' => $newStatus,
-    //         'changed_by' => $changedBy?->id ?? Auth::id(), // use the authenticated user or null
-    //         'notes' => $notes,
-    //     ]);
-
-    //     // dispatch OrderStatusChanged event
-    //     OrderStatusChanged::dispatch(
-    //         $this,
-    //         $oldStatus->value,
-    //         $changedBy?->name ?? Auth::user()->name,
-    //     );
-
-
-    //     return true;
-    // }
-
-    // get allowed transitions for the current status
-    public function getAllowedTransitions(): array
+    public function payments()
     {
-        return $this->status->getAllowedTransitions();
-    }
-
-    public function getLatestStatusChange()
-    {
-        return $this->statusHistory()->first();
+        return $this->hasMany(Payment::class);
     }
 
     // generate a unique order number
-    public static function generateOrderNumber()
+    public static function generateOrderNumber(): string
     {
         $year = date('Y');
-
 
         $randomNumber = strtoupper(substr(uniqid(), -6));
         return "ORD-{$year}-{$randomNumber}"; // e.g., ORD-2025-ABC123
     }
 
-    public function canBeCancelled()
+    public function canBeCancelled(): bool
     {
-        return in_array($this->status, [
-            OrderStatus::PENDING,
-            OrderStatus::PAID,
-        ]);
+        return $this->status->canBeCancelled();
     }
 
-    // mark as paid
-    public function markAsPaid($transactionId)
+    public function markAsPaid(): void
     {
         $this->update([
             'status' => OrderStatus::PAID,
             'payment_status' => PaymentStatus::COMPLETED,
-            'transaction_id' => $transactionId,
             'paid_at' => now(),
         ]);
     }
 
-    // mark as faild
-    public function markAsFailed()
+    public function markAsFailed(): void
     {
         $this->update([
             'payment_status' => PaymentStatus::FAILED,
         ]);
     }
 
-    /**
-     * Check if the order can accept a payment
-     * 
-     * @return bool
-     */
     public function canAcceptPayment(): bool
     {
-        return $this->payment_status === PaymentStatus::PENDING ||
-            $this->payment_status === PaymentStatus::FAILED;
+        return $this->payment_status->allowsNewAttempt();
     }
 }

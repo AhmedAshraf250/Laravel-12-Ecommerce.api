@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enum\OrderStatus;
+use App\Enum\PaymentProvider;
 use App\Enum\PaymentStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Cart;
@@ -11,13 +12,12 @@ use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class CheckoutController extends Controller
 {
-    //check out to place order and save it to database
-    public function checkout(Request $request)
+    public function store(Request $request)
     {
-        // Validate the request data
         $request->validate([
             'shipping_name' => 'required|string|max:255',
             'shipping_address' => 'required|string|max:255',
@@ -26,28 +26,30 @@ class CheckoutController extends Controller
             'shipping_zipcode' => 'required|string|max:20',
             'shipping_country' => 'required|string|max:255',
             'shipping_phone' => 'required|string|max:20',
-            'payment_method' => 'nullable|in:credit_card,paypal', // if null default to 'cod'
+            'payment_method' => ['required', Rule::in(PaymentProvider::values())],
             'notes' => 'nullable|string',
         ]);
 
-        $cartItems = Cart::with('product')->get();
+        $cartItems = Cart::query()
+            ->visibleTo($request->user(), Cart::getCookieId())
+            ->with('product')
+            ->get();
 
         if ($cartItems->isEmpty()) {
             return response()->json(['message' => 'Your cart is empty'], 400);
         }
 
         $subtotal = 0;
-        $items = []; // order items array
+        $items = [];
+
         foreach ($cartItems as $item) {
             $product = $item->product;
 
-            // check if product is active
-            if (!$product->is_active) {
+            if (! $product->is_active) {
                 return response()
                     ->json(['message' => "Product '{$product->name}' is no longer available"], 400);
             }
 
-            // check product stock
             if ($product->stock < $item->quantity) {
                 return response()
                     ->json(['message' => "not enogh stock for product '{$product->name}'"], 400);
@@ -66,16 +68,15 @@ class CheckoutController extends Controller
             ];
         }
 
-        // tax and shipping cost
-        $tax = round($subtotal * 0.08, 2); // assuming 8% tax
-        $shippingCost = 5.00; // flat rate shipping cost
+        $tax = round($subtotal * 0.08, 2);
+        $shippingCost = 5.00;
         $total = round($subtotal + $tax + $shippingCost, 2);
 
-        // Create the order with database transaction
         DB::beginTransaction();
+
         try {
             $order = new Order([
-                'user_id' => Auth::id(),
+                'user_id' => Auth::guard('sanctum')->id(),
                 'cookie_id' => Cart::getCookieId(),
                 'status' => OrderStatus::PENDING,
                 'shipping_name' => $request->shipping_name,
@@ -89,75 +90,39 @@ class CheckoutController extends Controller
                 'tax' => $tax,
                 'shipping_cost' => $shippingCost,
                 'total' => $total,
-                'payment_method' => $request->payment_method,
+                'currency' => strtoupper((string) config('payments.default_currency', 'USD')),
+                'payment_method' => $request->input('payment_method'),
                 'payment_status' => PaymentStatus::PENDING,
                 'order_number' => Order::generateOrderNumber(),
                 'notes' => $request->notes,
             ]);
-            // $user->orders()->save($order);
             $order->save();
 
-            // Save order items
+            $order->items()->createMany($items);
+
             foreach ($items as $item) {
-                $order->items()->create($item);
                 Product::where('id', $item['product_id'])
-                    ->decrement('stock', $item['quantity']); // decrement stock
+                    ->decrement('stock', $item['quantity']);
             }
 
-            // Clear the user's cart
-            Cart::each(function ($cartItem) {
-                $cartItem->delete();
-            });
+            Cart::query()
+                ->visibleTo($request->user(), Cart::getCookieId())
+                ->delete();
 
             DB::commit();
 
-            // Send the order confirmation email
-            // $order->user->notify(new OrderConfirmationNotification($order));
-            // Return the response
-            return response()
-                ->json([
-                    'message' => 'Order placed successfully',
-                    'order' => $order->load('items'),
-                    'status' => true,
-                ], 201);
+            return response()->json([
+                'message' => 'Order placed successfully',
+                'order' => $order->load('items'),
+                'status' => true,
+            ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
+
             return response()->json([
                 'message' => 'Failed to place order: ' . $e->getMessage(),
-                'status' => false
+                'status' => false,
             ], 500);
         }
-
-        return response()->json(['message' => 'Order placed successfully'], 201);
-    }
-
-    // simulate index method to return a list of orders called orderhistory
-    public function orderHistory()
-    {
-        $orders = Order::with('items')->latest()->get();
-        return response()->json([
-            'message' => 'Order history retrieved successfully',
-            'orders' => $orders,
-            'status' => true
-        ]);
-    }
-
-    // simulate show method to return a single order by id called orderDetails
-    public function orderDetails($id)
-    {
-        $order = Order::with('items')->find($id);
-
-        if (!$order) {
-            return response()->json([
-                'message' => 'Order not found',
-                'status' => false
-            ], 404);
-        }
-
-        return response()->json([
-            'message' => 'Order details retrieved successfully',
-            'order' => $order,
-            'status' => true
-        ]);
     }
 }

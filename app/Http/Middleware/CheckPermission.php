@@ -9,7 +9,7 @@ use Spatie\Permission\Exceptions\UnauthorizedException;
 
 class CheckPermission
 {
-    public function handle(Request $request, Closure $next, $permission)
+    public function handle(Request $request, Closure $next, string $permission)
     {
         if (! $request->user()) {
             throw UnauthorizedException::notLoggedIn();

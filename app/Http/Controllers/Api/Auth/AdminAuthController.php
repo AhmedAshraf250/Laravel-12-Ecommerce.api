@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api\Auth;
 
-use App\Http\Controllers\Api\AuthController;
 use Illuminate\Http\Request;
 
 class AdminAuthController extends AuthController

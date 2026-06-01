@@ -15,28 +15,28 @@ class ProductResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id'            => $this->id,
-            'product_name'  => $this->name,
-            'slug'          => $this->slug,
-            'description'   => $this->when($request->routeIs('products.show'), $this->description),
-            'sku'           => $this->sku,
-            'price_info'    => [
+            'id' => $this->id,
+            'product_name' => $this->name,
+            'slug' => $this->slug,
+            'description' => $this->when($request->routeIs('products.show'), $this->description),
+            'sku' => $this->sku,
+            'price_info' => [
                 'original' => $this->price,
-                'formatted' => number_format($this->price, 2) // . ' EGP',
+                'formatted' => number_format($this->price, 2),
             ],
-            'image_url'     => $this->image ? asset('storage/' . $this->image) : null,
-            'gallery' => $this->getCachedGallery()->map(fn($img) => asset('storage/' . $img->image_path)),
-            'stock_status'  => $this->stock > 0 ? 'In Stock' : 'Out of Stock',
-            // 'categories'    => $this->whenLoaded('categories'),
+            'image_url' => $this->image ? asset('storage/' . $this->image) : null,
+            'gallery' => $this->whenLoaded('images', function () {
+                return $this->images->map(fn ($image) => asset('storage/' . $image->image_path));
+            }),
+            'stock_status' => $this->stock > 0 ? 'In Stock' : 'Out of Stock',
             'categories' => $this->whenLoaded('categories', function () {
-                return $this->categories->map(fn($category) => [
-                    'id'   => $category->id,
+                return $this->categories->map(fn ($category) => [
+                    'id' => $category->id,
                     'name' => $category->name,
                     'slug' => $category->slug,
                 ]);
             }),
-            'created_at'    => $this->created_at->format('Y-m-d'),
-            // 'can_delete'    => $request->user()?->can('delete', $this->resource),
+            'created_at' => $this->created_at->format('Y-m-d'),
         ];
     }
 }

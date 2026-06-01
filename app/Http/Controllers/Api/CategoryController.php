@@ -3,9 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\ProductResource;
 use App\Models\Category;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 class CategoryController extends Controller
 {
@@ -15,7 +16,7 @@ class CategoryController extends Controller
     public function index()
     {
         // Get all active categories
-        $categories = Category::where('is_active', true)->get();
+        $categories = Category::where('is_active', true)->latest()->get();
 
         return response()->json([
             'status' => 'success',
@@ -29,20 +30,30 @@ class CategoryController extends Controller
      */
     public function store(Request $request)
     {
-        // Validate incoming request data
-        $request->validate([
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'parent_id' => 'nullable|exists:categories,id', // Make sure parent exists if provided
             'is_active' => 'nullable|boolean',
         ]);
 
+        if (! empty($validated['parent_id'])) {
+            $parent = Category::find($validated['parent_id']);
+
+            if (! $parent || ! $parent->is_active) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Parent category must be active.',
+                ], 422);
+            }
+        }
+
         // Create the new category
         $category = Category::create([
-            'name' => $request->name,
-            'description' => $request->description,
-            'parent_id' => $request->parent_id,
-            'is_active' => $request->is_active ?? true, // New categories are active by default
+            'name' => $validated['name'],
+            'description' => $validated['description'] ?? null,
+            'parent_id' => $validated['parent_id'] ?? null,
+            'is_active' => $validated['is_active'] ?? true, // New categories are active by default
         ]);
 
         return response()->json([
@@ -55,10 +66,15 @@ class CategoryController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Category $category)
+    public function show(string $category)
     {
-        // Load the parent and children relationshipss
-        $category->load(['parent', 'children']);
+        $category = Category::query()
+            ->where('is_active', true)
+            ->with([
+                'parent',
+                'children' => fn($query) => $query->where('is_active', true),
+            ])
+            ->findOrFail($category);
 
         // Return the category as a JSON response
         return response()->json([
@@ -75,9 +91,10 @@ class CategoryController extends Controller
     {
         $validated = $request->validate([
             'name'        => 'sometimes|required|string|max:255',
-            'description' => 'nullable|string',
+            'description' => 'sometimes|nullable|string',
             'is_active'   => 'sometimes|boolean',
             'parent_id'   => [
+                'sometimes',
                 'nullable',
                 'exists:categories,id',
                 function ($attribute, $value, $fail) use ($category) {
@@ -87,6 +104,15 @@ class CategoryController extends Controller
                 },
             ],
         ]);
+
+        if (array_key_exists('parent_id', $validated) && $validated['parent_id']) {
+            if ($this->wouldCreateCategoryCycle($category, (int) $validated['parent_id'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'A category cannot be moved under one of its descendants.',
+                ], 422);
+            }
+        }
 
         $category->update($validated);
 
@@ -102,16 +128,14 @@ class CategoryController extends Controller
      */
     public function destroy(Category $category)
     {
-        // Before deleting, handle child categories
-        foreach ($category->children as $child) {
-            // Move children to the parent of the category being deleted
-            // This maintains the hierarchy
-            $child->parent_id = $category->parent_id;
-            $child->save();
-        }
+        DB::transaction(function () use ($category) {
+            // Move children to the parent of the category being deleted to preserve the tree.
+            $category->children()->update([
+                'parent_id' => $category->parent_id,
+            ]);
 
-        // Now delete the category
-        $category->delete();
+            $category->delete();
+        });
 
         return response()->json([
             'status' => 'success',
@@ -119,14 +143,61 @@ class CategoryController extends Controller
         ]);
     }
 
-    public function products(Category $category)
+    public function products(string $category)
     {
-        $category->load('products');
-        // Return the category as a JSON response
-        return response()->json([
+        $category = Category::query()
+            ->where('is_active', true)
+            ->findOrFail($category);
+
+        $products = $category->products()
+            ->active()
+            ->with(['categories', 'images'])
+            ->latest()
+            ->get();
+
+        return ProductResource::collection($products)->additional([
             'status' => 'success',
             'message' => 'Products of Category retrieved successfully',
-            'data' => $category->products
         ]);
+    }
+
+    /*
+    This method checks the new parent and moves up through its parents.
+    If it reaches the current category, assigning that parent would create a cycle.
+
+    Safe example:
+    - Electronics (1)
+    - Phones (2) -> parent_id = 1
+    - Android (3) -> parent_id = 2
+    - Accessories (4) -> parent_id = 1
+
+    Suppose we want to update:
+    - Android (3) -> parent_id = 4
+
+    Check:
+    - Start from 4
+    - Is 4 === 3? No
+    - Parent of 4 is 1
+    - Is 1 === 3? No
+    - Parent of 1 is null
+
+    Result:
+    - false
+
+    This means no cycle would be created, so the update is valid.
+    */
+    private function wouldCreateCategoryCycle(Category $category, int $parentId): bool
+    {
+        $currentParentId = $parentId;
+
+        while ($currentParentId) {
+            if ($currentParentId === $category->id) {
+                return true;
+            }
+
+            $currentParentId = Category::whereKey($currentParentId)->value('parent_id');
+        }
+
+        return false;
     }
 }

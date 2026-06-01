@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -15,30 +14,33 @@ class RolesAndPermissionsSeeder extends Seeder
      */
     public function run(): void
     {
+        $guard = 'web';
+
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // Define product permissions
-        Permission::create(['name' => 'view products']);
-        Permission::create(['name' => 'create products']);
-        Permission::create(['name' => 'edit products']);
-        Permission::create(['name' => 'delete products']);
+        $permissions = [
+            'view products',
+            'create products',
+            'edit products',
+            'delete products',
+            'view orders',
+            'create orders',
+            'update orders',
+            'cancel orders',
+            'view users',
+            'edit users',
+            'view deliveries',
+            'update delivery status',
+        ];
 
-        // Define order permissions
-        Permission::create(['name' => 'view orders']);
-        Permission::create(['name' => 'create orders']);
-        Permission::create(['name' => 'update orders']);
-        Permission::create(['name' => 'cancel orders']);
+        foreach ($permissions as $permission) {
+            Permission::findOrCreate($permission, $guard);
+        }
 
-        // Define user permissions
-        Permission::create(['name' => 'view users']);
-        Permission::create(['name' => 'edit users']);
-
-        // Define delivery permissions
-        Permission::create(['name' => 'view deliveries']);
-        Permission::create(['name' => 'update delivery status']);
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
         // Create Admin role and assign all permissions
-        $adminRole = Role::create(['name' => 'admin']);
+        $adminRole = Role::findOrCreate('admin', $guard);
         $adminRole->givePermissionTo([
             'view products',
             'create products',
@@ -53,7 +55,7 @@ class RolesAndPermissionsSeeder extends Seeder
         ]);
 
         // Create Customer role with limited permissions
-        $customerRole = Role::create(['name' => 'customer']);
+        $customerRole = Role::findOrCreate('customer', $guard);
         $customerRole->givePermissionTo([
             'view products',
             'view orders',
@@ -62,7 +64,7 @@ class RolesAndPermissionsSeeder extends Seeder
         ]);
 
         // Create Delivery role
-        $deliveryRole = Role::create(['name' => 'delivery']);
+        $deliveryRole = Role::findOrCreate('delivery', $guard);
         $deliveryRole->givePermissionTo([
             'view deliveries',
             'update delivery status',

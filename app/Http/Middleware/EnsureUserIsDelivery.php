@@ -15,7 +15,7 @@ class EnsureUserIsDelivery
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (!$request->user() || !$request->user()->isDelivery()) {
+        if (!$request->user()?->isDelivery()) {
             return response()->json(['message' => 'Unauthorized. Delivery access required.'], 403);
         }
         return $next($request);

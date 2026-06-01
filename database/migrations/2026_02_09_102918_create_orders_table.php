@@ -27,8 +27,10 @@ return new class extends Migration
             $table->decimal('tax', 10, 2)->default(0);
             $table->decimal('shipping_cost', 10, 2)->default(0);
             $table->decimal('total', 10, 2);
-            $table->string('payment_method')->default('cod'); // e.g., cod, credit_card, paypal
-            $table->string('payment_status')->default('pending'); // e.g., pending, paid, failed
+            $table->string('payment_method')->nullable(); // e.g., stripe, paypal
+            $table->string('payment_status')->default('pending'); // e.g., pending, completed, failed
+            // $table->string('transaction_id')->nullable();
+            $table->timestamp('paid_at')->nullable();
             $table->string('order_number')->unique();
             $table->text('notes')->nullable();
             $table->timestamps();

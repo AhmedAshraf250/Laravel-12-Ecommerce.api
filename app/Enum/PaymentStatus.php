@@ -14,4 +14,21 @@ enum PaymentStatus: string
     {
         return array_column(self::cases(), 'value');
     }
+
+    public function allowsNewAttempt(): bool
+    {
+        return in_array($this, [
+            self::PENDING,
+            self::FAILED,
+        ], true);
+    }
+
+    public function isFinal(): bool
+    {
+        return in_array($this, [
+            self::COMPLETED,
+            self::FAILED,
+            self::REFUNDED,
+        ], true);
+    }
 }

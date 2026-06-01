@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
@@ -42,6 +42,7 @@ class AuthController extends Controller
     // login
     public function login(Request $request)
     {
+        // dd('login reached');
         // Validate the request data
         $validatedData = $request->validate([
             'email' => 'required|string|email|max:255',
@@ -49,7 +50,7 @@ class AuthController extends Controller
         ]);
 
         // Find the user by email
-        $user = \App\Models\User::where('email', $validatedData['email'])->first();
+        $user = User::where('email', $validatedData['email'])->first();
 
         // Check if the user exists and the password is correct
         if (!$user || !Hash::check($validatedData['password'], $user->password)) {
@@ -61,6 +62,7 @@ class AuthController extends Controller
         // Generate an API token for the user
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        // dd('before json response');
         // Return the user and token in the response
         return response()->json([
             'message' => 'User logged in successfully',
@@ -89,12 +91,21 @@ class AuthController extends Controller
         ], 200);
     }
 
-    // get access token
-    public function getAccessToken(Request $request)
+    // session info
+    public function sessionInfo(Request $request)
     {
+        $currentToken = $request->user()->currentAccessToken();
+
         return response()->json([
-            'access_token' => $request->user()->currentAccessToken()->plainTextToken,
-            'token_type' => 'Bearer',
+            'token' => [
+                'id' => $currentToken?->id,
+                'name' => $currentToken?->name,
+                'abilities' => $currentToken?->abilities ?? [],
+                'last_used_at' => $currentToken?->last_used_at,
+                'expires_at' => $currentToken?->expires_at,
+                'created_at' => $currentToken?->created_at,
+            ],
+            'user' => $request->user(),
         ], 200);
     }
 }

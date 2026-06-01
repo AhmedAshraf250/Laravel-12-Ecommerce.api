@@ -13,7 +13,7 @@ Route::prefix('admin')->group(function () {
     Route::middleware(['auth:sanctum', 'is.admin'])->group(function () {
         Route::post('/logout', [AdminAuthController::class, 'logout']);
         Route::get('/me', [AdminAuthController::class, 'me']);
-        Route::get('/token', [AdminAuthController::class, 'getAccessToken']);
+        Route::get('/session-info', [AdminAuthController::class, 'sessionInfo']);
     });
 });
 
@@ -23,7 +23,7 @@ Route::prefix('customer')->group(function () {
     Route::middleware(['auth:sanctum', 'is.customer'])->group(function () {
         Route::post('/logout', [CustomerAuthController::class, 'logout']);
         Route::get('/me', [CustomerAuthController::class, 'me']);
-        Route::get('/token', [CustomerAuthController::class, 'getAccessToken']);
+        Route::get('/session-info', [CustomerAuthController::class, 'sessionInfo']);
     });
 });
 
@@ -33,7 +33,7 @@ Route::prefix('delivery')->group(function () {
     Route::middleware(['auth:sanctum', 'is.delivery'])->group(function () {
         Route::post('/logout', [DeliveryAuthController::class, 'logout']);
         Route::get('/me', [DeliveryAuthController::class, 'me']);
-        Route::get('/token', [DeliveryAuthController::class, 'getAccessToken']);
+        Route::get('/session-info', [DeliveryAuthController::class, 'sessionInfo']);
     });
 });
 // Multiple Auth Routes // 
