@@ -17,26 +17,29 @@ class UserSeeder extends Seeder
         $users = [
             [
                 'name' => 'Admin User',
-                'email' => 'admin@example.com',
+                'email' => 'admin@mail.com',
                 'type' => 'admin',
                 'password' => Hash::make('password'),
             ],
             [
                 'name' => 'Customer User',
-                'email' => 'customer@example.com',
+                'email' => 'customer@mail.com',
                 'type' => 'customer',
                 'password' => Hash::make('password'),
             ],
             [
                 'name' => 'Delivery User',
-                'email' => 'delivery@example.com',
+                'email' => 'delivery@mail.com',
                 'type' => 'delivery',
                 'password' => Hash::make('password'),
             ],
         ];
 
         foreach ($users as $userData) {
-            $user = User::create($userData);
+            $user = User::updateOrCreate(
+                ['email' => $userData['email']],
+                $userData,
+            );
             $user->assignRole($userData['type']);
         }
     }

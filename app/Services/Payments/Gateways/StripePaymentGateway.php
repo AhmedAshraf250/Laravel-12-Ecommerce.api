@@ -38,6 +38,7 @@ class StripePaymentGateway implements PaymentGateway
                 ],
                 'automatic_payment_methods' => [
                     'enabled' => true,
+                    // 'allow_redirects' => 'never',
                 ],
             ]);
         } catch (ApiErrorException $exception) {
@@ -69,6 +70,7 @@ class StripePaymentGateway implements PaymentGateway
             if (!empty($payload['payment_method_id'])) {
                 $intent = $this->client->paymentIntents->confirm($reference, [
                     'payment_method' => $payload['payment_method_id'],
+                    'return_url' => $payload['return_url'] ?? null,
                 ]);
             } else {
                 $intent = $this->client->paymentIntents->retrieve($reference, []);

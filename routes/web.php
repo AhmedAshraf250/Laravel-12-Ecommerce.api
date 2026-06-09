@@ -8,3 +8,4 @@ Route::get('/', function () {
 });
 
 Route::get('/_debug/routes', RouteExplorerController::class);
+Route::view('/_debug/reverb/order-status', 'debug.order-status-reverb');

@@ -4,7 +4,10 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "mailpit:lin": "./tools/mailpit",
+        "mailpit:win": ".\\tools\\mailpit.exe",
+        "mailpit:w -open": "start http://127.0.0.1:8025 && .\\tools\\mailpit.exe"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",

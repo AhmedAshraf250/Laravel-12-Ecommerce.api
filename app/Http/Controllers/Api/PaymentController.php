@@ -64,8 +64,7 @@ class PaymentController extends Controller
             return response()->json([
                 'message' => $response->result->message ?? 'Payment status updated successfully.',
                 'status' => true,
-                // 'payment' => new PaymentResource($response->payment->load('order')),
-                'payment' => PaymentResource::collection($response->payment->load('order')),
+                'payment' => new PaymentResource($response->payment->load('order')),
             ]);
         } catch (PaymentException $exception) {
             return response()->json([

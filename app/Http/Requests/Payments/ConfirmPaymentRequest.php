@@ -16,6 +16,7 @@ class ConfirmPaymentRequest extends FormRequest
         return [
             'provider_reference' => ['nullable', 'string'],
             'payment_method_id' => ['nullable', 'string'],
+            'return_url' => ['nullable', 'url'],
         ];
     }
 }

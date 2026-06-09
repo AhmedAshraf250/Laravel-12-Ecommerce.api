@@ -64,7 +64,7 @@ class Payment extends Model
             'metadata' => array_merge($this->metadata ?? [], $metadata)
         ]);
 
-        $this->order->markAsPaid();
+        $this->order->makePaid($this->fresh(), "Payment completed by {$this->provider->value}.");
     }
 
     public function markAsFailed(array $metadata = []): void

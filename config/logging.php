@@ -75,7 +75,7 @@ return [
 
         'payments' => [
             'driver' => 'daily',
-            'path' => storage_path('logs/payments.log'),
+            'path' => storage_path('logs/daily/payments/payments.log'),
             'level' => env('PAYMENTS_LOG_LEVEL', 'debug'),
             'days' => env('PAYMENTS_LOG_DAILY_DAYS', 30),
             'replace_placeholders' => true,
@@ -97,7 +97,7 @@ return [
             'handler_with' => [
                 'host' => env('PAPERTRAIL_URL'),
                 'port' => env('PAPERTRAIL_PORT'),
-                'connectionString' => 'tls://'.env('PAPERTRAIL_URL').':'.env('PAPERTRAIL_PORT'),
+                'connectionString' => 'tls://' . env('PAPERTRAIL_URL') . ':' . env('PAPERTRAIL_PORT'),
             ],
             'processors' => [PsrLogMessageProcessor::class],
         ],

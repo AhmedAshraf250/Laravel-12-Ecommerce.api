@@ -1,10 +1,12 @@
 <?php
 
 use App\Contracts\Payments\PaymentGateway;
+use App\Data\Payments\PaymentConfirmationResult;
 use App\Data\Payments\PaymentInitializationResult;
 use App\Enum\PaymentProvider;
 use App\Enum\PaymentStatus;
 use App\Models\Order;
+use App\Models\Payment;
 use App\Models\User;
 use App\Services\Payments\PaymentGatewayManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -120,4 +122,59 @@ it('reuses an existing pending payment instead of creating a duplicate one', fun
     expect($secondResponse['payment']['provider_reference'])->toBe('pi_test_duplicate');
     expect($secondResponse['payment']['metadata']['client_data']['client_secret'])->toBe('secret_duplicate');
     expect($order->payments()->count())->toBe(1);
+});
+
+it('confirms a payment and returns a single payment resource', function () {
+    $user = User::factory()->create([
+        'type' => 'customer',
+    ]);
+
+    $order = Order::factory()->create([
+        'user_id' => $user->id,
+        'currency' => 'USD',
+        'payment_method' => PaymentProvider::STRIPE,
+        'payment_status' => PaymentStatus::PENDING,
+    ]);
+
+    $payment = Payment::query()->create([
+        'order_id' => $order->id,
+        'user_id' => $user->id,
+        'provider' => PaymentProvider::STRIPE,
+        'provider_reference' => 'pi_test_confirm',
+        'amount' => $order->total,
+        'currency' => 'USD',
+        'status' => PaymentStatus::PENDING,
+        'metadata' => [],
+    ]);
+
+    $gateway = \Mockery::mock(PaymentGateway::class);
+    $gateway->shouldReceive('confirmPayment')
+        ->once()
+        ->andReturn(new PaymentConfirmationResult(
+            status: PaymentStatus::PENDING,
+            providerReference: 'pi_test_confirm',
+            message: 'Stripe payment status retrieved successfully.',
+            metadata: ['provider_status' => 'requires_confirmation'],
+        ));
+
+    $gatewayManager = \Mockery::mock(PaymentGatewayManager::class);
+    $gatewayManager->shouldReceive('resolve')
+        ->once()
+        ->with(PaymentProvider::STRIPE)
+        ->andReturn($gateway);
+
+    app()->instance(PaymentGatewayManager::class, $gatewayManager);
+
+    $this->actingAs($user, 'sanctum')
+        ->withoutMiddleware()
+        ->postJson("/api/checkout/payments/{$payment->id}/confirm", [
+            'provider_reference' => 'pi_test_confirm',
+            'payment_method_id' => 'pm_card_visa',
+            'return_url' => 'http://127.0.0.1:8000/_debug/routes',
+        ])
+        ->assertOk()
+        ->assertJsonPath('status', true)
+        ->assertJsonPath('payment.id', $payment->id)
+        ->assertJsonPath('payment.provider_reference', 'pi_test_confirm')
+        ->assertJsonPath('payment.order.id', $order->id);
 });

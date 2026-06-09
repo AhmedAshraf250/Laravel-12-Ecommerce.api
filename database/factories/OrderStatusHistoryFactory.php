@@ -14,9 +14,10 @@ class OrderStatusHistoryFactory extends Factory
     {
         return [
             'order_id' => Order::factory(), // Link to an existing order
-            'from_status' => $this->faker->randomElement(['PENDING', 'PAID', 'SHIPPED', 'COMPLETED', 'CANCELLED']),
-            'to_status' => $this->faker->randomElement(['PENDING', 'PAID', 'SHIPPED', 'COMPLETED', 'CANCELLED']),
-            'user_id' => $this->faker->randomNumber(), // Assuming user IDs are numeric
+            'created_by_type' => 'system',
+            'created_by_id' => null,
+            'from_status' => $this->faker->randomElement(\App\Enum\OrderStatus::values()),
+            'to_status' => $this->faker->randomElement(\App\Enum\OrderStatus::values()),
             'note' => $this->faker->sentence(),
         ];
     }

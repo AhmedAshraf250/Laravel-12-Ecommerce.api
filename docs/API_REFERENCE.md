@@ -259,6 +259,175 @@ The order currency is determined by the store configuration at checkout time and
 
 `POST /checkout/{order}/payments`
 
+Optional body:
+
+```json
+{
+  "return_url": "https://example.com/payment/success",
+  "cancel_url": "https://example.com/payment/cancel"
+}
+```
+
+Notes:
+
+- Creates a payment attempt for the order's selected `payment_method`
+- Reuses the latest pending payment for the same provider instead of creating duplicates
+
+`POST /checkout/payments/{payment}/confirm`
+
+Optional body:
+
+```json
+{
+  "provider_reference": "pi_xxx",
+  "payment_method_id": "pm_card_visa",
+  "return_url": "https://example.com/payment/success"
+}
+```
+
+Notes:
+
+- `provider_reference` is usually the Stripe `payment_intent` id or equivalent provider reference
+- `payment_method_id` is useful for Stripe confirmation flows
+- `return_url` is only relevant for redirect-based payment methods; card test flows such as `pm_card_visa` usually return normal JSON responses
+
+## Orders
+
+### Customer-facing
+
+`GET /orders`
+
+Returns only the authenticated customer's own orders.
+
+`GET /orders/{id}`
+
+Returns one visible order with `items` and `statusHistories`.
+
+`POST /orders/{order}/cancel`
+
+```json
+{
+  "note": "Changed my mind."
+}
+```
+
+Rules:
+
+- Customers can cancel only their own `pending` orders
+- Cancelled orders are not deleted
+- Paid order cancellation is not customer-driven and should be handled through admin/refund workflows
+
+### Admin-facing
+
+`GET /admin/orders`
+
+Supported query params:
+
+- `search`
+- `status`
+- `payment_status`
+- `payment_method`
+- `user_id`
+- `date_from`
+- `date_to`
+- `per_page`
+- `sort_by`: `created_at`, `total`, `paid_at`
+- `sort_direction`: `asc`, `desc`
+
+Example:
+
+```text
+/admin/orders?search=sarah&status=paid&payment_method=stripe&per_page=10&sort_by=created_at&sort_direction=desc
+```
+
+Response notes:
+
+- Paginated results
+- Includes a compact `user`
+- Includes `latest_status_history`
+- Includes `items_count`, `payments_count`, and `status_histories_count`
+
+`GET /admin/orders/{order}`
+
+Returns full order details for admin review.
+
+`PATCH /admin/orders/{order}/status`
+
+```json
+{
+  "status": "processing",
+  "note": "Packed and ready for fulfillment."
+}
+```
+
+Rules:
+
+- `paid` status is controlled only by the payment workflow
+- Admins can move operational statuses such as `paid -> processing`
+- Admins can cancel `pending` or `paid` orders according to workflow rules
+
+### Delivery-facing
+
+`PATCH /delivery/orders/{order}/status`
+
+```json
+{
+  "status": "shipped",
+  "note": "Out for delivery."
+}
+```
+
+Rules:
+
+- Delivery can move `processing -> shipped`
+- Delivery can move `shipped -> delivered`
+- Delivery cannot move orders to `processing`, `paid`, or `cancelled`
+
+## Webhooks
+
+`POST /webhooks/stripe`
+
+Receives Stripe webhook events such as `payment_intent.succeeded`.
+
+`POST /webhooks/paypal`
+
+Receives PayPal webhook events.
+
+## Realtime
+
+The project broadcasts order status changes through Laravel Reverb.
+
+Main event:
+
+- `OrderStatusUpdated`
+
+Main private channels:
+
+- `orders.{orderId}`
+- `users.{userId}.orders`
+
+Broadcast auth route:
+
+- `GET|POST /broadcasting/auth`
+
+For this project, broadcast auth is configured with `auth:sanctum`, so Bearer tokens can authorize private channel subscriptions.
+
+Debug page:
+
+- `GET /_debug/reverb/order-status`
+
+Purpose:
+
+- Manual browser listener for order status events
+- Useful for testing that private channel auth, Reverb connection, and payload delivery all work correctly
+
+## Notes Before Release
+
+- Login and register endpoints support optional `device_name`
+- The auth flow uses one active token per device name
+- Cancelled orders remain stored for audit/history purposes
+- Refund automation is not implemented yet; paid cancellation is only the order workflow side, not a payment-provider refund integration
+
 ```json
 {
   "return_url": "https://example.com/payment/success",

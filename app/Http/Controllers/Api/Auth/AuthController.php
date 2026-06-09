@@ -7,18 +7,18 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
-class AuthController extends Controller
+abstract class AuthController extends Controller
 {
-    // register
     public function register(Request $request)
     {
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
+            'device_name' => 'nullable|string|max:100',
         ]);
 
-        return $this->processRegistration($validatedData, 'user');
+        return $this->processRegistration($validatedData, $this->expectedUserType());
     }
 
     protected function processRegistration(array $data, string $type)
@@ -30,7 +30,10 @@ class AuthController extends Controller
             'type' => $type,
         ]);
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $token = $this->issueTokenForDevice(
+            $user,
+            $this->resolveDeviceName($data['device_name'] ?? null),
+        );
 
         return response()->json([
             'message' => ucfirst($type) . ' registered successfully',
@@ -39,31 +42,33 @@ class AuthController extends Controller
             'user' => $user,
         ], 201);
     }
-    // login
     public function login(Request $request)
     {
-        // dd('login reached');
-        // Validate the request data
         $validatedData = $request->validate([
             'email' => 'required|string|email|max:255',
             'password' => 'required|string|min:8',
+            'device_name' => 'nullable|string|max:100',
         ]);
 
-        // Find the user by email
         $user = User::where('email', $validatedData['email'])->first();
 
-        // Check if the user exists and the password is correct
         if (!$user || !Hash::check($validatedData['password'], $user->password)) {
             return response()->json([
                 'message' => 'Invalid credentials',
             ], 401);
         }
 
-        // Generate an API token for the user
-        $token = $user->createToken('auth_token')->plainTextToken;
+        if ($user->type !== $this->expectedUserType()) {
+            return response()->json([
+                'message' => 'You are not allowed to login from this endpoint.',
+            ], 403);
+        }
 
-        // dd('before json response');
-        // Return the user and token in the response
+        $token = $this->issueTokenForDevice(
+            $user,
+            $this->resolveDeviceName($validatedData['device_name'] ?? $request->userAgent()),
+        );
+
         return response()->json([
             'message' => 'User logged in successfully',
             'access_token' => $token,
@@ -72,10 +77,10 @@ class AuthController extends Controller
         ], 200);
     }
 
-    // logout
+    abstract protected function expectedUserType(): string;
+
     public function logout(Request $request)
     {
-        // Revoke the token that was used to authenticate the current request
         $request->user()->currentAccessToken()->delete();
 
         return response()->json([
@@ -83,7 +88,6 @@ class AuthController extends Controller
         ], 200);
     }
 
-    // me
     public function me(Request $request)
     {
         return response()->json([
@@ -91,7 +95,6 @@ class AuthController extends Controller
         ], 200);
     }
 
-    // session info
     public function sessionInfo(Request $request)
     {
         $currentToken = $request->user()->currentAccessToken();
@@ -107,5 +110,26 @@ class AuthController extends Controller
             ],
             'user' => $request->user(),
         ], 200);
+    }
+
+    protected function issueTokenForDevice(User $user, string $deviceName): string
+    {
+        $tokenName = $this->tokenNameForDevice($deviceName);
+
+        $user->tokens()->where('name', $tokenName)->delete();
+
+        return $user->createToken($tokenName)->plainTextToken;
+    }
+
+    protected function tokenNameForDevice(string $deviceName): string
+    {
+        return "{$this->expectedUserType()}:{$deviceName}";
+    }
+
+    protected function resolveDeviceName(?string $deviceName): string
+    {
+        $deviceName = trim((string) $deviceName);
+
+        return $deviceName !== '' ? $deviceName : 'default-device';
     }
 }
