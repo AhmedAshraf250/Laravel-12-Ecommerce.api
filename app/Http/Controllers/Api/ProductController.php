@@ -266,25 +266,18 @@ class ProductController extends Controller
         ]);
     }
 
-    // index of admin products
     public function adminIndex(Request $request)
     {
-        // get all products (default)
-        if ($request->user()->hasRole('admin')) {
-            $products = Product::withTrashed()
+        $perPage = max(1, min((int) $request->integer('per_page', 15), 100));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Products retrieved successfully',
+            'data' => Product::withTrashed()
                 ->with(['categories', 'images'])
                 ->latest()
-                ->get();
-            return response()->json([
-                'success' => true,
-                'message' => 'Products retrieved successfully',
-                'data' => $products
-            ], 200);
-        }
-        return response()->json([
-            'success' => false,
-            'message' => 'You are not authorized to perform this action',
-        ], 403);
+                ->paginate($perPage),
+        ]);
     }
 
     private function clearCache(?Product $product): void
@@ -293,7 +286,7 @@ class ProductController extends Controller
 
         if ($product) {
             Cache::forget("product_{$product->id}");
-            Cache::forget("product_gallery_{$product->id}");
+            // Cache::forget("product_gallery_{$product->id}");
         }
     }
 

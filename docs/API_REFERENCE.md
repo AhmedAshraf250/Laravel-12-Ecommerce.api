@@ -1,10 +1,5 @@
 # API Reference
 
-Publish:
-
-```url
-https://documenter.getpostman.com/view/29717063/2sBXwpMAjV
-```
 
 Base URL:
 
@@ -34,7 +29,7 @@ Common variables:
 ```json
 {
   "name": "Admin One",
-  "email": "admin1@example.com",
+  "email": "admin1@mail.com",
   "password": "password123",
   "password_confirmation": "password123"
 }
@@ -44,7 +39,7 @@ Common variables:
 
 ```json
 {
-  "email": "admin@example.com",
+  "email": "admin@mail.com",
   "password": "password"
 }
 ```
@@ -62,7 +57,7 @@ Common variables:
 ```json
 {
   "name": "Customer One",
-  "email": "customer1@example.com",
+  "email": "customer1@mail.com",
   "password": "password123",
   "password_confirmation": "password123"
 }
@@ -72,7 +67,7 @@ Common variables:
 
 ```json
 {
-  "email": "customer@example.com",
+  "email": "customer@mail.com",
   "password": "password"
 }
 ```
@@ -90,7 +85,7 @@ Common variables:
 ```json
 {
   "name": "Delivery One",
-  "email": "delivery1@example.com",
+  "email": "delivery1@mail.com",
   "password": "password123",
   "password_confirmation": "password123"
 }
@@ -100,7 +95,7 @@ Common variables:
 
 ```json
 {
-  "email": "delivery@example.com",
+  "email": "delivery@mail.com",
   "password": "password"
 }
 ```
@@ -167,7 +162,7 @@ Use `form-data`
 
 `DELETE /products/{product}`
 
-`GET /products/admin`
+`GET /admin/products`
 
 `POST /products/{product}/restore`
 
@@ -263,8 +258,8 @@ Optional body:
 
 ```json
 {
-  "return_url": "https://example.com/payment/success",
-  "cancel_url": "https://example.com/payment/cancel"
+  "return_url": "http://127.0.0.1:8000/_debug/routes",
+  "cancel_url": "http://127.0.0.1:8000/_debug/routes"
 }
 ```
 
@@ -281,7 +276,7 @@ Optional body:
 {
   "provider_reference": "pi_xxx",
   "payment_method_id": "pm_card_visa",
-  "return_url": "https://example.com/payment/success"
+  "return_url": "http://127.0.0.1:8000/_debug/routes"
 }
 ```
 
@@ -426,44 +421,6 @@ Purpose:
 - Login and register endpoints support optional `device_name`
 - The auth flow uses one active token per device name
 - Cancelled orders remain stored for audit/history purposes
-- Refund automation is not implemented yet; paid cancellation is only the order workflow side, not a payment-provider refund integration
-
-```json
-{
-  "return_url": "https://example.com/payment/success",
-  "cancel_url": "https://example.com/payment/cancel"
-}
-```
-
-This endpoint uses the payment method already stored in the order during checkout. If `order.payment_method` is missing, the API returns a `422` business error.
-
-`POST /checkout/payments/{payment}/confirm`
-
-```json
-{
-  "provider_reference": "pi_test_123",
-  "payment_method_id": "pm_card_visa",
-  "metadata": {
-    "confirmed_by": "postman"
-  }
-}
-```
-
-## Orders
-
-`GET /orders`
-
-`GET /orders/{id}`
-
-## Webhooks
-
-`POST /webhooks/stripe`
-
-Send raw JSON body from Stripe event payload.
-
-`POST /webhooks/paypal`
-
-Send raw JSON body from PayPal event payload.
 
 ## Suggested Postman flow
 

@@ -2,7 +2,7 @@
 
 Short script for presenting the main workflow to a senior reviewer.
 
-Replace `CUSTOMER_TOKEN`, `ADMIN_TOKEN`, `DELIVERY_TOKEN`, `PENDING_ORDER_ID`, and `PAID_ORDER_ID` before use.
+Replace `CUSTOMER_TOKEN`, `ADMIN_TOKEN`, `DELIVERY_TOKEN`, `PENDING_ORDER_ID`, `PAID_ORDER_ID`, and `PROCESSING_ORDER_ID` before use.
 
 ## 1. Seed the demo data
 
@@ -12,9 +12,9 @@ php artisan migrate:fresh --seed
 
 Use these seeded users:
 
-- `admin@example.com / password`
-- `customer@example.com / password`
-- `delivery@example.com / password`
+- `admin@mail.com / password`
+- `customer@mail.com / password`
+- `delivery@mail.com / password`
 
 Login endpoints:
 
@@ -26,6 +26,7 @@ Demo orders:
 
 - `ORD-DEMO-PENDING`
 - `ORD-DEMO-PAID`
+- `ORD-DEMO-PROCESSING`
 
 ## 2. Show customer visibility
 
@@ -114,7 +115,7 @@ Delivery staff have a narrower endpoint and narrower transition rights.
 Run:
 
 ```bash
-curl -X PATCH http://127.0.0.1:8000/api/delivery/orders/PAID_ORDER_ID/status \
+curl -X PATCH http://127.0.0.1:8000/api/delivery/orders/PROCESSING_ORDER_ID/status \
   -H "Accept: application/json" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer DELIVERY_TOKEN" \

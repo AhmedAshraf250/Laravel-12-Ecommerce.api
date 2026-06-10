@@ -12,9 +12,9 @@ php artisan migrate:fresh --seed
 
 Users:
 
-- `admin@example.com / password`
-- `customer@example.com / password`
-- `delivery@example.com / password`
+- `admin@mail.com / password`
+- `customer@mail.com / password`
+- `delivery@mail.com / password`
 
 Orders:
 
@@ -22,6 +22,8 @@ Orders:
   A `pending` order that the customer can cancel.
 - `ORD-DEMO-PAID`:
   A `paid` order that the admin can move to `processing`.
+- `ORD-DEMO-PROCESSING`:
+  A `processing` order that delivery can move to `shipped`.
 
 ## Environment
 
@@ -33,6 +35,7 @@ ADMIN_TOKEN=replace_admin_token
 DELIVERY_TOKEN=replace_delivery_token
 PENDING_ORDER_ID=replace_pending_order_id
 PAID_ORDER_ID=replace_paid_order_id
+PROCESSING_ORDER_ID=replace_processing_order_id
 PAYMENT_ID=replace_payment_id
 ```
 
@@ -44,21 +47,21 @@ Purpose: get the tokens used in the rest of the scenarios.
 curl -X POST http://127.0.0.1:8000/api/customer/login \
   -H "Accept: application/json" \
   -H "Content-Type: application/json" \
-  -d '{"email":"customer@example.com","password":"password"}'
+  -d '{"email":"customer@mail.com","password":"password"}'
 ```
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/admin/login \
   -H "Accept: application/json" \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@example.com","password":"password"}'
+  -d '{"email":"admin@mail.com","password":"password"}'
 ```
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/delivery/login \
   -H "Accept: application/json" \
   -H "Content-Type: application/json" \
-  -d '{"email":"delivery@example.com","password":"password"}'
+  -d '{"email":"delivery@mail.com","password":"password"}'
 ```
 
 ## Customer Orders
@@ -134,14 +137,14 @@ Expected: success, a history record, a notification, and a broadcast event.
 Purpose: delivery staff move the order from `processing` to `shipped`.
 
 ```bash
-curl -X PATCH http://127.0.0.1:8000/api/delivery/orders/$PAID_ORDER_ID/status \
+curl -X PATCH http://127.0.0.1:8000/api/delivery/orders/$PROCESSING_ORDER_ID/status \
   -H "Accept: application/json" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $DELIVERY_TOKEN" \
   -d '{"status":"shipped","note":"Out for delivery."}'
 ```
 
-Expected: success only if the order is already `processing`.
+Expected: success because the seeded processing order is already `processing`.
 
 ## Delivery Invalid Transition
 

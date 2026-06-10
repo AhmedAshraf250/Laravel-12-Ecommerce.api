@@ -70,7 +70,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"customer@example.com\",\n  \"password\": \"password\",\n  \"device_name\": \"{{device_name}}\"\n}"
+              "raw": "{\n  \"email\": \"customer@mail.com\",\n  \"password\": \"password\",\n  \"device_name\": \"{{device_name}}\"\n}"
             },
             "url": "{{base_url}}/customer/login"
           }
@@ -91,7 +91,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Customer One\",\n  \"email\": \"customer1@example.com\",\n  \"password\": \"password123\",\n  \"password_confirmation\": \"password123\",\n  \"device_name\": \"{{device_name}}\"\n}"
+              "raw": "{\n  \"name\": \"Customer One\",\n  \"email\": \"customer1@mail.com\",\n  \"password\": \"password123\",\n  \"password_confirmation\": \"password123\",\n  \"device_name\": \"{{device_name}}\"\n}"
             },
             "url": "{{base_url}}/customer/register"
           }
@@ -112,7 +112,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"password\",\n  \"device_name\": \"{{device_name}}\"\n}"
+              "raw": "{\n  \"email\": \"admin@mail.com\",\n  \"password\": \"password\",\n  \"device_name\": \"{{device_name}}\"\n}"
             },
             "url": "{{base_url}}/admin/login"
           }
@@ -133,7 +133,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"delivery@example.com\",\n  \"password\": \"password\",\n  \"device_name\": \"{{device_name}}\"\n}"
+              "raw": "{\n  \"email\": \"delivery@mail.com\",\n  \"password\": \"password\",\n  \"device_name\": \"{{device_name}}\"\n}"
             },
             "url": "{{base_url}}/delivery/login"
           }
@@ -378,7 +378,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/products/admin"
+            "url": "{{base_url}}/admin/products"
           }
         },
         {
@@ -731,7 +731,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"return_url\": \"https://example.com/payment/success\",\n  \"cancel_url\": \"https://example.com/payment/cancel\"\n}"
+              "raw": "{\n  \"return_url\": \"http://127.0.0.1:8000/_debug/routes\",\n  \"cancel_url\": \"http://127.0.0.1:8000/_debug/routes\"\n}"
             },
             "url": "{{base_url}}/checkout/{{order_id}}/payments"
           }

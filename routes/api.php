@@ -16,7 +16,7 @@ Route::middleware(['auth:sanctum', 'permission:create products'])->group(functio
     Route::apiResource('products', ProductController::class)->except(['index', 'show']);
 
     // Admin specific product routes
-    Route::get('/products/admin', [ProductController::class, 'adminIndex']);
+    Route::get('/admin/products', [ProductController::class, 'adminIndex']);
     Route::post('/products/{product}/restore', [ProductController::class, 'undoDelete']);
     Route::delete('/products/{product}/permanent', [ProductController::class, 'permanentDelete']);
 });

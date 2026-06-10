@@ -15,7 +15,7 @@ it('allows admins to filter and search the order index', function () {
     $targetCustomer = User::factory()->create([
         'type' => 'customer',
         'name' => 'Sarah Connor',
-        'email' => 'sarah@example.com',
+        'email' => 'sarah@mail.com',
     ]);
 
     $matchedOrder = Order::factory()->create([
@@ -55,7 +55,7 @@ it('allows admins to filter and search the order index', function () {
         ->assertJsonPath('orders.data.0.items_count', 0)
         ->assertJsonPath('orders.data.0.payments_count', 0)
         ->assertJsonPath('orders.data.0.latest_status_history.to_status', OrderStatus::PAID->value)
-        ->assertJsonPath('orders.data.0.user.email', 'sarah@example.com');
+        ->assertJsonPath('orders.data.0.user.email', 'sarah@mail.com');
 });
 
 it('returns paginated admin order results with requested sorting', function () {
